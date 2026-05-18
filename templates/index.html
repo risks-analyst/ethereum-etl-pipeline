@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ethereum ETL Pipeline</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0d1117;
+  color:#ffffff;
+  font-family:Inter, Arial, sans-serif;
+  min-height:100vh;
+  padding:40px;
+}
+.wrapper { width:100%; max-width:1100px; margin:auto; }
+.header { margin-bottom:40px; }
+.title {
+  font-size:14px;
+  text-transform:uppercase;
+  letter-spacing:2px;
+  color:#7d8590;
+  margin-bottom:12px;
+}
+.network-state {
+  font-size:42px;
+  font-weight:700;
+  line-height:1.1;
+}
+.grid {
+  display:grid;
+  grid-template-columns:1.5fr 0.8fr;
+  gap:24px;
+}
+.panel {
+  background:#161b22;
+  border:1px solid rgba(255,255,255,0.04);
+  border-radius:24px;
+  padding:24px;
+}
+.section-title {
+  font-size:13px;
+  text-transform:uppercase;
+  letter-spacing:1.5px;
+  color:#7d8590;
+  margin-bottom:24px;
+}
+.feed { display:flex; flex-direction:column; gap:16px; }
+.feed-item {
+  padding:18px;
+  border-radius:18px;
+  background:#0f141b;
+  transition:0.2s ease;
+  cursor:pointer;
+  border-left:3px solid #3fb950;
+}
+.feed-item:hover { background:#131922; }
+.feed-item.approve { border-left-color:#e53935; }
+.feed-item.swap { border-left-color:#fbc02d; }
+.feed-item.contract { border-left-color:#7d8590; }
+.feed-amount { font-size:20px; font-weight:700; margin-bottom:8px; }
+.feed-description { font-size:13px; line-height:1.5; color:#c9d1d9; word-break:break-all; }
+.feed-time { margin-top:8px; font-size:12px; color:#7d8590; }
+.hash-link { color:#3fb950; text-decoration:none; font-family:monospace; font-size:11px; }
+.hash-link:hover { text-decoration:underline; }
+.pulse-list { display:flex; flex-direction:column; gap:18px; }
+.pulse-item { display:flex; justify-content:space-between; align-items:center; font-size:15px; }
+.pulse-label { color:#8b949e; }
+.pulse-value { font-weight:600; color:#3fb950; }
+.live {
+  margin-top:28px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:#7d8590;
+  font-size:13px;
+}
+.dot {
+  width:10px; height:10px;
+  border-radius:50%;
+  background:#3fb950;
+  animation:pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity:0.4; transform:scale(1); }
+  50% { opacity:1; transform:scale(1.25); }
+  100% { opacity:0.4; transform:scale(1); }
+}
+@media(max-width:900px) {
+  .grid { grid-template-columns:1fr; }
+  .network-state { font-size:32px; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <div class="title">Blockchain ETL Pipeline</div>
+    <div class="network-state" id="networkState">Indexing Ethereum in real time</div>
+  </div>
+
+  <div class="grid">
+
+    <div class="panel">
+      <div class="section-title">Live Transaction Feed</div>
+      <div class="feed" id="feed">
+        <div class="feed-item">
+          <div class="feed-amount">⏳ Starting pipeline...</div>
+          <div class="feed-description">Connecting to Ethereum network</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Network Pulse</div>
+      <div class="pulse-list">
+        <div class="pulse-item">
+          <div class="pulse-label">Transactions Indexed</div>
+          <div class="pulse-value" id="total-txs">0</div>
+        </div>
+        <div class="pulse-item">
+          <div class="pulse-label">Blocks Processed</div>
+          <div class="pulse-value" id="total-blocks">0</div>
+        </div>
+        <div class="pulse-item">
+          <div class="pulse-label">Total ETH Indexed</div>
+          <div class="pulse-value" id="total-eth">0</div>
+        </div>
+        <div class="pulse-item">
+          <div class="pulse-label">Top TX Type</div>
+          <div class="pulse-value" id="top-type">—</div>
+        </div>
+      </div>
+      <div class="live">
+        <div class="dot"></div>
+        Listening to Ethereum in real time
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function getTypeClass(type) {
+  if (type === "Approve") return "approve";
+  if (type === "Swap") return "swap";
+  if (type === "Contract Call") return "contract";
+  return "";
+}
+
+function getNetworkState(data) {
+  if (data.total_txs === 0) return "Indexing Ethereum in real time";
+  const topType = data.tx_types[0]?.type || "Unknown";
+  if (topType === "Swap") return "Elevated swap activity detected";
+  if (topType === "Approve") return "High approval activity detected";
+  if (data.total_eth > 1000) return "Large ETH movement detected";
+  return "Ethereum network operating normally";
+}
+
+async function fetchStats() {
+  try {
+    const res = await fetch("/stats");
+    const data = await res.json();
+
+    document.getElementById("total-txs").innerText = data.total_txs;
+    document.getElementById("total-blocks").innerText = data.total_blocks;
+    document.getElementById("total-eth").innerText = data.total_eth + " ETH";
+    document.getElementById("top-type").innerText = data.tx_types[0]?.type || "—";
+    document.getElementById("networkState").innerText = getNetworkState(data);
+
+    if (data.recent.length > 0) {
+      document.getElementById("feed").innerHTML = data.recent.map(tx => {
+        const shortHash = tx.hash.slice(0,10) + "..." + tx.hash.slice(-8);
+        const typeClass = getTypeClass(tx.type);
+        return `
+          <div class="feed-item ${typeClass}">
+            <div class="feed-amount">${tx.value_eth.toFixed(4)} ETH — ${tx.type}</div>
+            <div class="feed-description">
+              From: ${tx.from}<br>
+              To: ${tx.to || "Contract Creation"}
+            </div>
+            <div class="feed-time">
+              Block #${tx.block} &nbsp;·&nbsp;
+              <a class="hash-link" href="https://etherscan.io/tx/${tx.hash}" target="_blank">${shortHash} ↗</a>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+  } catch(e) { console.error(e); }
+}
+
+fetchStats();
+setInterval(fetchStats, 15000);
+</script>
+</body>
+</html>
