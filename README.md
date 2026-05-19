@@ -10,9 +10,11 @@
 
 A real-time, lightweight Blockchain ETL (Extract, Transform, Load) Pipeline that continuously indexes Ethereum Mainnet blocks and raw transactions into a structured database.
 
-## Live Demo
+## Demo
 
-🔗 **Live Project:** [https://eth-etl-pipeline.onrender.com](https://eth-etl-pipeline.onrender.com)
+[![ETL Pipeline Demo](https://img.youtube.com/vi/tRg00k-4puc/0.jpg)](https://youtu.be/tRg00k-4puc)
+
+🔗 **Live Demo:** [https://ethereum-etl-pipeline.onrender.com](https://ethereum-etl-pipeline.onrender.com)
 
 ## Problem
 
