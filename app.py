@@ -2,16 +2,28 @@ import os
 import time
 import threading
 import sqlite3
+import logging
 from flask import Flask, render_template, jsonify
 from web3 import Web3
 from dotenv import load_dotenv
 
 load_dotenv()
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 RPC_URL = os.getenv("RPC_URL")
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 DB_PATH = "eth_data.db"
+
+if not w3.is_connected():
+    logger.error("Connection failed. Check your RPC.")
+    exit()
+logger.info("Connected to Ethereum successfully")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -77,7 +89,7 @@ def save_transaction(tx, block_number, timestamp):
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"DB Error: {e}")
+        logger.error(f"DB Error saving transaction: {e}")
 
 def save_block(block_number, tx_count, total_eth, timestamp):
     try:
@@ -91,11 +103,11 @@ def save_block(block_number, tx_count, total_eth, timestamp):
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"Block DB Error: {e}")
+        logger.error(f"DB Error saving block: {e}")
 
 def etl_pipeline():
     last_block = w3.eth.block_number
-    print(f"ETL Pipeline started at block {last_block}")
+    logger.info(f"ETL Pipeline started at block {last_block}")
     while True:
         try:
             current_block = w3.eth.block_number
@@ -108,11 +120,11 @@ def etl_pipeline():
                     total_eth += eth_val
                     save_transaction(tx, current_block, timestamp)
                 save_block(current_block, len(block.transactions), total_eth, timestamp)
-                print(f"Block {current_block}: {len(block.transactions)} txs indexed")
                 last_block = current_block
+                logger.info(f"Block {current_block}: {len(block.transactions)} txs indexed")
             time.sleep(12)
         except Exception as e:
-            print(f"Pipeline error: {e}")
+            logger.error(f"Pipeline error: {e}")
             time.sleep(12)
 
 def get_stats():
@@ -151,7 +163,11 @@ def index():
 
 @app.route("/stats")
 def stats():
-    return jsonify(get_stats())
+    try:
+        return jsonify(get_stats())
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
     init_db()
